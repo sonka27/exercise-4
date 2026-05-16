@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Каталог фильмов и сериалов</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.12.5/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@latest/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+    body {
+        background-color: #121212;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+    .glow-card {
+        border: 1px solid rgba(232, 11, 11, 0.2);
+        box-shadow: 0 0 15px rgba(232, 11, 11, 0.15);
+        transition: all 0.3s ease-in-out;
+    }
+    .glow-card:hover {
+        box-shadow: 0 0 25px rgba(0, 230, 118, 0.4);
+        transform: translateY(-2px);
+    }
+    .glow-fav-card {
+        border: 1px solid rgba(33, 150, 243, 0.2);
+        box-shadow: 0 0 15px rgba(33, 150, 243, 0.15);
+    }
+    .strikeout {
+        text-decoration: line-through;
+        opacity: 0.6;
+    }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <v-app theme="dark">
+            <v-container class="py-8">
+                <v-row class="mb-6 align-center">
+                    <v-col>
+                        <h1 class="text-h4 font-weight-bold text-emerald">
+                            <v-icon icon="mdi-filmstrip" class="mr-2" color="success"></v-icon>
+                            {{ header }}
+                        </h1>
+                    </v-col>
+                    <v-col class="text-right">
+                        <v-btn v-if="editing" @click="doEdit(false)" color="error" variant="elevated">Назад</v-btn>
+                        <v-btn v-else @click="doEdit(true)" color="success" variant="elevated">Добавить</v-btn>
+                    </v-col>
+                </v-row>
+                <v-row>
+                    <v-col cols="12" md="7">
+                        <v-expand-transition>
+                            <v-card v-if="editing" class="pa-4 mb-6 glow-card" variant="outlined">
+                                <v-card-title class="text-h6 px-0 pt-0">Новый фильм</v-card-title>
+                                <v-form @submit.prevent="saveItem">
+                                    <v-text-field
+                                        v-model="newItem"
+                                        label="Название фильма"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        class="mb-2"
+                                        hide-details
+                                    ></v-text-field>
+
+                                    <v-text-field
+                                        v-model="newItemPoster"
+                                        label="Ссылка на постер"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        class="mb-2"
+                                        hide-details
+                                    ></v-text-field>
+
+                                    <v-checkbox
+                                        v-model="newItemHighPriority"
+                                        label="Высокий приоритет"
+                                        color="error"
+                                        hide-details
+                                    ></v-checkbox>
+
+                                    <v-btn
+                                        @click="saveItem"
+                                        color="success"
+                                        block
+                                        class="mt-4"
+                                        :disabled="!newItem.trim()"
+                                    >
+                                        Сохранить в каталог
+                                    </v-btn>
+                                </v-form>
+                            </v-card>
+                        </v-expand-transition>
+
+                        <h2 class="text-h5 mb-4 text-grey-lighten-1">Доступные фильмы</h2>
+                        <p v-if="items.length === 0" class="text-body-1 text-grey text-center my-8">В каталоге пока пусто</p>
+                        
+                        <v-row v-else>
+                            <v-col cols="12" v-for="item in reversedItems" :key="item.id">
+                                <v-card class="glow-card" variant="outlined">
+                                    <div class="d-flex flex-no-wrap justify-space-between">
+                                        <v-avatar class="ma-3" size="110" rounded="lg">
+                                            <v-img :src="item.poster" cover>
+                                                <template v-slot:placeholder>
+                                                    <v-row class="fill-height ma-0" align="center" justify="center">
+                                                        <v-icon icon="mdi-movie-open" size="large" color="grey"></v-icon>
+                                                    </v-row>
+                                                </template>
+                                            </v-img>
+                                        </v-avatar>
+
+                                        <div class="d-flex flex-column justify-space-between flex-grow-1">
+                                            <v-card-item>
+                                                <div class="d-flex align-center gap-2 flex-wrap">
+                                                    <v-card-title class="text-h6 font-weight-bold" :class="{ 'text-error': item.highPriority }">
+                                                        {{ item.label }}
+                                                    </v-card-title>
+                                                    <v-chip v-if="item.highPriority" color="error" size="x-small" class="ml-2">Высокий рейтинг</v-chip>
+                                                </div>
+                                                <v-card-subtitle class="mt-1">ID {{ item.id }}</v-card-subtitle>
+                                            </v-card-item>
+
+                                            <v-card-actions class="pt-0">
+                                                <v-btn
+                                                    :color="isFavorite(item) ? 'blue' : 'red'"
+                                                    :icon="isFavorite(item) ? 'mdi-heart' : 'mdi-heart-outline'"
+                                                    @click="toggleFavorite(item)"
+                                                ></v-btn>
+                                                <span class="text-caption text-grey-lighten-1">
+                                                    {{ isFavorite(item) ? 'В избранном' : 'Добавить в избранное' }}
+                                                </span>
+                                            </v-card-actions>
+                                        </div>
+                                    </div>
+                                </v-card>
+                            </v-col>
+                        </v-row>
+                    </v-col>
+
+                    <v-col cols="12" md="5">
+                        <v-card class="glow-fav-card pa-4 position-sticky" style="top: 32px;" variant="outlined">
+                            <v-card-title class="text-h5 d-flex align-center pb-3 border-bottom">
+                                <v-icon icon="mdi-bookmark-multiple" color="blue" class="mr-2"></v-icon>
+                                Избранное
+                            </v-card-title>
+                            <v-card-text class="px-0 pt-4">
+                                <p v-if="favorites.length === 0" class="text-body-2 text-grey text-center my-6">
+                                    Вы пока ничего не добавили
+                                </p>
+                                <v-list bg-color="transparent" v-else>
+                                    <v-list-item 
+                                        v-for="fav in favorites" 
+                                        :key="fav.id"
+                                        class="px-2 mb-2 bg-grey-darken-4 rounded">
+                                        <template v-slot:prepend>
+                                            <v-checkbox-btn
+                                                v-model="fav.purchased"
+                                                color="success"
+                                                class="mr-2"
+                                            ></v-checkbox-btn>
+                                        </template>
+                                        
+                                        <v-list-item-title :class="{ strikeout: fav.purchased }" class="font-weight-medium">
+                                            {{ fav.label }}
+                                        </v-list-item-title>
+
+                                        <template v-slot:append>
+                                            <v-btn
+                                                icon="mdi-close"
+                                                variant="text"
+                                                size="small"
+                                                color="grey"
+                                                @click="toggleFavorite(fav)"
+                                            ></v-btn>
+                                        </template>
+                                    </v-list-item>
+                                </v-list>
+                            </v-card-text>
+
+                            <v-divider class="my-3"></v-divider>
+                            <v-card-actions class="justify-space-between px-2">
+                                <span class="text-subtitle-1 font-weight-bold">Просмотрено фильмов:</span>
+                                <v-chip color="success" size="large" variant="flat" class="font-weight-bold">
+                                    {{ watchedCount }} / {{ favorites.length }}
+                                </v-chip>
+                            </v-card-actions>
+                        </v-card>
+                    </v-col>
+
+                </v-row>
+            </v-container>
+        </v-app>
+    </div>
+    <script src="https://unpkg.com/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.12.5/dist/vuetify.min.js"></script>
+
+    <script>
+        const { createApp } = Vue;
+        const { createVuetify } = Vuetify;
+        const vuetify = createVuetify();
+        createApp({
+            data() {
+                return {
+                    header: "Каталог фильмов",
+                    editing: false,
+                    newItem: '',
+                    newItemPoster: '',
+                    newItemHighPriority: false,
+                    items: [
+                        {
+                            id: 1, 
+                            label: "Отель Гранд Будапешт", 
+                            purchased: true, 
+                            highPriority: false,
+                            poster: "hotel.jpg"
+                        },
+                        {
+                            id: 2, 
+                            label: "Реальные упыри", 
+                            purchased: false,  
+                            highPriority: false,
+                            poster: "realup.jpg"
+                        },
+                        {
+                            id: 3, 
+                            label: "Амели", 
+                            purchased: false,  
+                            highPriority: true,
+                            poster: "ameli.jpg"
+                        },
+                        {
+                            id: 4, 
+                            label: "Лиля навсегда", 
+                            purchased: false,  
+                            highPriority: false,
+                            poster: "lilya.jpg"
+                        }
+                    ],
+                    favoriteIds: [1, 3] 
+                }
+            },
+            computed: {
+                reversedItems() {
+                    return [...this.items].reverse();
+                },
+                favorites() {
+                    return this.items.filter(item => this.favoriteIds.includes(item.id));
+                },
+                watchedCount() {
+                    return this.favorites.filter(item => item.purchased).length;
+                }
+            },
+            methods: {
+                saveItem() {
+                    if (!this.newItem.trim()) return;
+                    const defaultPoster = "be.jpg";
+                    this.items.push({
+                        id: this.items.length + 1, 
+                        label: this.newItem,
+                        highPriority: this.newItemHighPriority,
+                        purchased: false,
+                        poster: this.newItemPoster.trim() || defaultPoster
+                    });
+
+                    this.newItem = "";
+                    this.newItemPoster = "";
+                    this.newItemHighPriority = false;
+                },
+                doEdit(editing) {
+                    this.editing = editing;
+                    this.newItem = "";
+                    this.newItemPoster = "";
+                    this.newItemHighPriority = false;
+                },
+                isFavorite(item) {
+                    return this.favoriteIds.includes(item.id);
+                },
+                toggleFavorite(item) {
+                    const index = this.favoriteIds.indexOf(item.id);
+                    if (index > -1) {
+                        this.favoriteIds.splice(index, 1);
+                    } else {
+                        this.favoriteIds.push(item.id);
+                    }
+                }
+            }  
+        })
+        .use(vuetify)
+        .mount('#app')
+    </script>
+</body>
+</html>
